@@ -22,19 +22,19 @@ class hybridmethod(object):
     def __init__(self, instance_function):
         """Create a new :class:`.hybridmethod`.
 
-       Usage is typically via decorator::
+        Usage is typically via decorator::
 
-           from bentoml.util.hybridmethod import hybridmethod
+            from bentoml.util.hybridmethod import hybridmethod
 
-           class SomeClass(object):
-               @hybridmethod
-               def func(self, x, y):
-                   return self._value + x + y
+            class SomeClass(object):
+                @hybridmethod
+                def func(self, x, y):
+                    return self._value + x + y
 
-               @func.classmethod
-               def value(cls, x, y):
-                   return cls._default_value + x + y
-       """
+                @func.classmethod
+                def value(cls, x, y):
+                    return cls._default_value + x + y
+        """
         self._instance_function = instance_function
         self._class_function = None
 
@@ -52,6 +52,5 @@ class hybridmethod(object):
         return self
 
     def __call__(self, *args, **kwargs):
-        """Needed for this to work in python2.7
-        """
+        """Needed for this to work in python2.7"""
         return self.__get__(self, type(self))(*args, **kwargs)

@@ -1,4 +1,6 @@
 import os
+import sys
+import re
 import inspect
 import logging
 import tempfile
@@ -6,15 +8,135 @@ import uuid
 import datetime
 import subprocess
 import multiprocessing
+import threading
 from typing import List
 
-from .artifacts import BentoServiceArtifact
+from .artifacts import BentoServiceArtifact, ArtifactCollection
 from .env import BentoServiceEnv
 from ..utils.hybridmethod import hybridmethod
+from .inference_api import InferenceAPI
+from ..adapters import BaseInputAdapter, BaseOutputAdapter, DefaultOutput
 
 
 logger = logging.getLogger(__name__)
 
+
+ARTIFACTS_DIR_NAME = "artifacts"
+DEFAULT_MAX_BATCH_SIZE = 2000
+DEFAULT_MAX_LATENCY = 10000
+BENTOML_RESERVED_API_NAMES = [
+    "index",
+    "swagger",
+    "docs",
+    "healthz",
+    "metrics",
+    "feedback",
+]
+
+def validate_inference_api_name(api_name: str):
+    if not api_name.isidentifier():
+        raise Exception(
+            "Invalid API name: '{}', a valid identifier may only contain letters,"
+            " numbers, underscores and not starting with a number.".format(api_name)
+        )
+
+    if api_name in BENTOML_RESERVED_API_NAMES:
+        raise Exception(
+            "Reserved API name: '{}' is reserved for infra endpoints".format(api_name)
+        )
+
+def api_decorator(
+    *args,
+    input: BaseInputAdapter = None,
+    output: BaseOutputAdapter = None,
+    api_name: str = None,
+    api_doc: str = None,
+    mb_max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
+    mb_max_latency: int = DEFAULT_MAX_LATENCY,
+    batch=False,
+    **kwargs,
+):  # pylint: disable=redefined-builtin
+    """
+    A decorator exposed as `bentoml.api` for defining Inference API in a BentoService
+    class.
+
+    :param input: InputAdapter instance of the inference API
+    :param output: OutputAdapter instance of the inference API
+    :param api_name: API name, default to the user-defined callback function's function
+        name
+    :param api_doc: user-facing documentation of the inference API. default to the
+        user-defined callback function's docstring
+    :param mb_max_batch_size: The maximum size of requests batch accepted by this
+        inference API. This parameter governs the throughput/latency trade off, and
+        avoids having large batches that exceed some resource constraint (e.g. GPU
+        memory to hold the entire batch's data). Default: 1000.
+    :param mb_max_latency: The latency goal of this inference API in milliseconds.
+        Default: 10000.
+    """
+
+    def decorator(func):
+        _api_name = func.__name__ if api_name is None else api_name
+        validate_inference_api_name(_api_name)
+        _api_doc = func.__doc__ if api_doc is None else api_doc
+
+        if input is None:
+            # Raise error when input adapter class passed without instantiation
+            if not args or not (
+                inspect.isclass(args[0]) and issubclass(args[0], BaseInputAdapter)
+            ):
+                raise Exception(
+                    "BentoService @api decorator first parameter must "
+                    "be an instance of a class derived from "
+                    "bentoml.adapters.BaseInputAdapter "
+                )
+
+            # noinspection PyPep8Naming
+            InputAdapter = args[0]
+            input_adapter = InputAdapter(*args[1:], **kwargs)
+            output_adapter = DefaultOutput()
+        else:
+            assert isinstance(input, BaseInputAdapter), (
+                "API input parameter must be an instance of a class derived from "
+                "bentoml.adapters.BaseInputAdapter"
+            )
+            input_adapter = input
+            output_adapter = output or DefaultOutput()
+
+        setattr(func, "_is_api", True)
+        setattr(func, "_input_adapter", input_adapter)
+        setattr(func, "_output_adapter", output_adapter)
+        setattr(func, "_api_name", _api_name)
+        setattr(func, "_api_doc", _api_doc)
+        setattr(func, "_mb_max_batch_size", mb_max_batch_size)
+        setattr(func, "_mb_max_latency", mb_max_latency)
+        setattr(func, "_batch", batch)
+
+        return func
+
+    return decorator
+
+
+def validate_version_str(version_str):
+    """
+    Validate that version str format is either a simple version string that:
+        * Consist of only ALPHA / DIGIT / "-" / "." / "_"
+        * Length between 1-128
+    Or a valid semantic version https://github.com/semver/semver/blob/master/semver.md
+    """
+    regex = r"[A-Za-z0-9_.-]{1,128}\Z"
+    semver_regex = r"^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"  # noqa: E501
+    if (
+        re.match(regex, version_str) is None
+        and re.match(semver_regex, version_str) is None
+    ):
+        raise Exception(
+            'Invalid BentoService version: "{}", it can only consist'
+            ' ALPHA / DIGIT / "-" / "." / "_", and must be less than'
+            "128 characters".format(version_str)
+        )
+
+    if version_str.lower() == "latest":
+        raise Exception('BentoService version can not be set to "latest"')
 
 class BentoService:
     """
@@ -162,7 +284,9 @@ class BentoService:
                     (api for api in self.inference_apis if api.name == api_name)
                 )
             except StopIteration:
-                raise Exception("Can't find API '{}' in service '{}'".format(api_name, self.name))
+                raise Exception(
+                    "Can't find API '{}' in service '{}'".format(api_name, self.name)
+                )
         elif len(self.inference_apis) > 0:
             return self.inference_apis[0]
         else:
@@ -170,7 +294,7 @@ class BentoService:
 
     @property
     def artifacts(self):
-        """ Returns the ArtifactCollection instance specified with this BentoService
+        """Returns the ArtifactCollection instance specified with this BentoService
         class
 
         Returns:
@@ -192,7 +316,9 @@ class BentoService:
             return None
         if self._bento_service_bundle_path:
             return os.path.join(
-                self._bento_service_bundle_path, self.name, 'web_static_content',
+                self._bento_service_bundle_path,
+                self.name,
+                "web_static_content",
             )
         else:
             return os.path.join(os.getcwd(), self.web_static_content)
@@ -212,8 +338,8 @@ class BentoService:
         """
         if cls._bento_service_name is not None:
             if not cls._bento_service_name.isidentifier():
-                raise InvalidArgument(
-                    'BentoService#_bento_service_name must be valid python identifier'
+                raise Exception(
+                    "BentoService#_bento_service_name must be valid python identifier"
                     'matching regex `(letter|"_")(letter|digit|"_")*`'
                 )
 
@@ -348,7 +474,7 @@ class BentoService:
         """
         **Deprecated**: Legacy `BentoService#pack` class method, no longer supported
         """
-        raise BentoMLException(
+        raise Exception(
             "BentoService#pack class method is deprecated, use instance method `pack` "
             "instead. e.g.: svc = MyBentoService(); svc.pack('model', model_object)"
         )
@@ -375,18 +501,18 @@ class BentoService:
 
             def print_log(p):
                 for line in p.stdout:
-                    print(line.decode(), end='')
+                    print(line.decode(), end="")
 
             def run(path, interrupt_event):
                 my_env = os.environ.copy()
                 my_env["FLASK_ENV"] = "development"
                 cmd = [sys.executable, "-m", "bentoml", "serve", "--debug"]
                 if port:
-                    cmd += ['--port', f'{port}']
+                    cmd += ["--port", f"{port}"]
                 if enable_microbatch:
-                    cmd += ['--enable-microbatch']
+                    cmd += ["--enable-microbatch"]
                 if enable_ngrok:
-                    cmd += ['--run-with-ngrok']
+                    cmd += ["--run-with-ngrok"]
                 cmd += [path]
                 p = subprocess.Popen(
                     cmd,
@@ -452,6 +578,6 @@ class BentoService:
             # to deploy with docker due to the version can't be found on PyPI, but
             # get_bentoml_deploy_version gives the user the latest released PyPI
             # version that's closest to the `dirty` branch
-            self.pip_dependencies_map['bentoml'] = get_bentoml_deploy_version()
+            self.pip_dependencies_map["bentoml"] = get_bentoml_deploy_version()
 
         return self.pip_dependencies_map

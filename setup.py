@@ -1,11 +1,6 @@
 import setuptools
 
-install_requires = [
-    "werkzeug",
-    "click",
-    "requests",
-    "multidict"
-]
+install_requires = ["werkzeug", "click", "requests", "multidict"]
 
 setuptools.setup(
     name="bentolite",

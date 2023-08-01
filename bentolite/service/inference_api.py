@@ -23,9 +23,9 @@ from typing import Iterable, Iterator, Sequence
 
 import flask
 
-from bentoml.adapters import BaseInputAdapter, BaseOutputAdapter
+from ..adapters import BaseInputAdapter, BaseOutputAdapter
 from ..server import trace
-from bentoml.types import HTTPRequest, InferenceResult, InferenceTask
+from ..types import HTTPRequest, InferenceResult, InferenceTask
 from ..utils import cached_property
 
 logger = logging.getLogger(__name__)
@@ -198,9 +198,9 @@ class InferenceAPI(object):
         :return: the HTTP API request schema in OpenAPI/Swagger format
         """
         schema = self.input_adapter.request_schema
-        if schema.get('application/json'):
-            schema.get('application/json')[
-                'example'
+        if schema.get("application/json"):
+            schema.get("application/json")[
+                "example"
             ] = self.input_adapter._http_input_example
         return schema
 
@@ -287,7 +287,7 @@ class InferenceAPI(object):
         results = self.infer((inf_task,))
         result = next(iter(results))
         response = self.output_adapter.to_http_response(result)
-        response.headers['X-Request-Id'] = inf_task.task_id
+        response.headers["X-Request-Id"] = inf_task.task_id
         return response.to_flask_response()
 
     def handle_batch_request(self, requests: Sequence[HTTPRequest]):
@@ -299,7 +299,7 @@ class InferenceAPI(object):
             results = self.infer(inf_tasks)
             responses = tuple(map(self.output_adapter.to_http_response, results))
             for inf_task, response in zip(inf_tasks, responses):
-                response.headers['X-Request-Id'] = inf_task.task_id
+                response.headers["X-Request-Id"] = inf_task.task_id
             return responses
 
     def handle_cli(self, cli_args: Sequence[str]) -> int:

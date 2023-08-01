@@ -4,9 +4,13 @@ import logging
 import stat
 from sys import version_info
 from pathlib import Path
+from pkg_resources import Requirement, parse_requirements
+import warnings
 
 from ..utils.ruamel_yaml import YAML
 
+
+warnings.simplefilter(action='ignore', category=DeprecationWarning)
 
 logger = logging.getLogger(__name__)
 

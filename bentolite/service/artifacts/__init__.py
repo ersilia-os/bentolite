@@ -137,9 +137,13 @@ class BentoServiceArtifact:
 
             def wrapped_load(*args, **kwargs):
                 if self.packed:
-                    logger.warning("`load` on a 'packed' artifact may lead to unexpected behaviors")
+                    logger.warning(
+                        "`load` on a 'packed' artifact may lead to unexpected behaviors"
+                    )
                 if self.loaded:
-                    logger.warning("`load` an artifact multiple times may lead to unexpected behaviors")
+                    logger.warning(
+                        "`load` an artifact multiple times may lead to unexpected behaviors"
+                    )
 
                 # load metadata if exists
                 path = args[0]  # load(self, path)
@@ -161,7 +165,9 @@ class BentoServiceArtifact:
 
             def wrapped_save(*args, **kwargs):
                 if not self.is_ready:
-                    raise Exception("Trying to save empty artifact. An artifact needs to be `pack` with model instance or `load` from saved path before saving")
+                    raise Exception(
+                        "Trying to save empty artifact. An artifact needs to be `pack` with model instance or `load` from saved path before saving"
+                    )
 
                 # save metadata
                 dst = args[0]  # save(self, dst)
@@ -178,10 +184,74 @@ class BentoServiceArtifact:
 
             def wrapped_get(*args, **kwargs):
                 if not self.is_ready:
-                    raise Exception("Trying to access empty artifact. An artifact needs to be `pack` with model instance or `load` from saved path before it can be used for inference")
+                    raise Exception(
+                        "Trying to access empty artifact. An artifact needs to be `pack` with model instance or `load` from saved path before it can be used for inference"
+                    )
                 original = object.__getattribute__(self, item)
                 return original(*args, **kwargs)
 
             return wrapped_get
 
         return object.__getattribute__(self, item)
+
+
+class ArtifactCollection(dict):
+    """
+    A dict of artifact instances (artifact.name -> artifact_instance)
+    """
+
+    def __setitem__(self, key: str, artifact: BentoServiceArtifact):
+        if key != artifact.name:
+            raise Exception(
+                "Must use Artifact name as key, {} not equal to {}".format(
+                    key, artifact.name
+                )
+            )
+        self.add(artifact)
+
+    def __getattr__(self, item: str):
+        """Proxy to `BentoServiceArtifact#get()` to allow easy access to the model
+        artifact in its native form. E.g. for a BentoService class with an artifact
+        `SklearnModelArtifact('model')`, when user code accesses `self.artifacts.model`
+        in the BentoService API callback function, instead of returning an instance of
+        BentoServiceArtifact, it returns a Sklearn model object
+        """
+        return self[item].get()
+
+    def get(self, item: str) -> BentoServiceArtifact:
+        """Access the BentoServiceArtifact instance by artifact name"""
+        return self[item]
+
+    def get_artifact_list(self) -> List[BentoServiceArtifact]:
+        """Access the list of BentoServiceArtifact instances"""
+        return super(ArtifactCollection, self).values()
+
+    def add(self, artifact: BentoServiceArtifact):
+        super(ArtifactCollection, self).__setitem__(artifact.name, artifact)
+
+    def save(self, dst):
+        """Save all BentoServiceArtifact instances in self.values() to `dst` path
+        if they are `packed` or `loaded`
+        """
+        save_path = os.path.join(dst, ARTIFACTS_DIR_NAME)
+        os.mkdir(save_path)
+        for artifact in self.get_artifact_list():
+            if artifact.is_ready:
+                artifact.save(save_path)
+            else:
+                logger.warning(
+                    "Skip saving empty artifact, %s('%s')",
+                    artifact.__class__.__name__,
+                    artifact.name,
+                )
+
+    @classmethod
+    def from_artifact_list(cls, artifacts_list: List[BentoServiceArtifact]):
+        artifact_collection = cls()
+        for artifact in artifacts_list:
+            artifact_collection.add(artifact._copy())
+        return artifact_collection
+
+    def load_all(self, path):
+        for artifact in self.values():
+            artifact.load(path)
