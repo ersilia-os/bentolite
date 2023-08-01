@@ -33,6 +33,7 @@ BENTOML_RESERVED_API_NAMES = [
     "feedback",
 ]
 
+
 def validate_inference_api_name(api_name: str):
     if not api_name.isidentifier():
         raise Exception(
@@ -44,6 +45,7 @@ def validate_inference_api_name(api_name: str):
         raise Exception(
             "Reserved API name: '{}' is reserved for infra endpoints".format(api_name)
         )
+
 
 def api_decorator(
     *args,
@@ -116,6 +118,38 @@ def api_decorator(
     return decorator
 
 
+def artifacts_decorator(artifacts: List[BentoServiceArtifact]):
+    """Define artifacts required to be bundled with a BentoService
+
+    Args:
+        artifacts (list(bentoml.artifact.BentoServiceArtifact)): A list of desired
+            artifacts required by this BentoService
+    """
+
+    def decorator(bento_service_cls):
+        artifact_names = set()
+        for artifact in artifacts:
+            if not isinstance(artifact, BentoServiceArtifact):
+                raise Exception(
+                    "BentoService @artifacts decorator only accept list of "
+                    "BentoServiceArtifact instances, instead got type: '%s'"
+                    % type(artifact)
+                )
+
+            if artifact.name in artifact_names:
+                raise Exception(
+                    "Duplicated artifact name `%s` detected. Each artifact within one"
+                    "BentoService must have an unique name" % artifact.name
+                )
+
+            artifact_names.add(artifact.name)
+
+        bento_service_cls._declared_artifacts = artifacts
+        return bento_service_cls
+
+    return decorator
+
+
 def validate_version_str(version_str):
     """
     Validate that version str format is either a simple version string that:
@@ -137,6 +171,7 @@ def validate_version_str(version_str):
 
     if version_str.lower() == "latest":
         raise Exception('BentoService version can not be set to "latest"')
+
 
 class BentoService:
     """

@@ -10,7 +10,7 @@ import warnings
 from ..utils.ruamel_yaml import YAML
 
 
-warnings.simplefilter(action='ignore', category=DeprecationWarning)
+warnings.simplefilter(action="ignore", category=DeprecationWarning)
 
 logger = logging.getLogger(__name__)
 
