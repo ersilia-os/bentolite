@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from bentoml.configuration import _is_pip_installed_bentoml
+from ..configuration import _is_pip_installed_bentoml
 from bentoml.exceptions import BentoMLException
 from bentoml.saved_bundle.local_py_modules import (
     copy_local_py_modules,
@@ -41,7 +41,7 @@ from bentoml.saved_bundle.templates import (
 )
 from ..utils import is_gcs_url, is_s3_url
 from ..utils.tempdir import TempDirectory
-from bentoml.utils.usage_stats import track_save
+from ..utils.usage_stats import track_save
 from bentoml.saved_bundle.config import SavedBundleConfig
 from bentoml.saved_bundle.pip_pkg import get_zipmodules, ZIPIMPORT_DIR
 

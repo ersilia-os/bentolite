@@ -72,10 +72,7 @@ LAST_PYPI_RELEASE_VERSION = __version__.split("+")[0]
 
 
 def _is_pip_installed_bentoml():
-    is_installed_package = hasattr(version_mod, "version_json")
-    is_tagged = not __version__.startswith("0+untagged")
-    is_clean = not version_mod.get_versions()["dirty"]
-    return is_installed_package and is_tagged and is_clean
+    return True
 
 
 def get_local_config_file():

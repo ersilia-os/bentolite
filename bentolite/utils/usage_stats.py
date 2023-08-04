@@ -22,7 +22,7 @@ import uuid
 
 from .ruamel_yaml import YAML
 from bentoml.utils import ProtoMessageToDict # TODO Zakia : can we avoid using Protobuf?
-from bentoml.configuration import _is_pip_installed_bentoml
+from ..configuration import _is_pip_installed_bentoml
 from bentoml import config
 from .. import __version__ as BENTOML_VERSION
 
