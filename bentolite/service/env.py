@@ -8,6 +8,7 @@ from pkg_resources import Requirement, parse_requirements
 import warnings
 
 from ..utils.ruamel_yaml import YAML
+from ..configuration import get_bentoml_deploy_version
 
 
 warnings.simplefilter(action="ignore", category=DeprecationWarning)
