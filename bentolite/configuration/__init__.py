@@ -19,6 +19,7 @@ from pathlib import Path
 
 from ..exceptions import BentoMLConfigException
 from .configparser import BentoMLConfigParser
+from ..configuration import get_bentoml_deploy_version
 
 # Note this file is loaded prior to logging being configured, thus logger is only
 # used within functions in this file
