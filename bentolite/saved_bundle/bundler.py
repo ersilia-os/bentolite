@@ -32,7 +32,7 @@ from .local_py_modules import (
     copy_local_py_modules,
     copy_zip_import_archives,
 )
-from bentoml.saved_bundle.loader import _is_remote_path
+from .loader import _is_remote_path
 from bentoml.saved_bundle.templates import (
     BENTO_SERVICE_BUNDLE_SETUP_PY_TEMPLATE,
     INIT_PY_TEMPLATE,
@@ -43,7 +43,7 @@ from ..utils import is_gcs_url, is_s3_url
 from ..utils.tempdir import TempDirectory
 from ..utils.usage_stats import track_save
 from bentoml.saved_bundle.config import SavedBundleConfig
-from bentoml.saved_bundle.pip_pkg import get_zipmodules, ZIPIMPORT_DIR
+from .pip_pkg import get_zipmodules, ZIPIMPORT_DIR
 
 
 DEFAULT_SAVED_BUNDLE_README = """\

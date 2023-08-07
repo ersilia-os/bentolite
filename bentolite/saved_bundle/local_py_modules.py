@@ -24,7 +24,7 @@ from shutil import copyfile
 import modulefinder
 from unittest.mock import patch
 
-from bentoml.saved_bundle.pip_pkg import get_all_pip_installed_modules
+from .pip_pkg import get_all_pip_installed_modules
 from ..exceptions import BentoMLException
 
 
