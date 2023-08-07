@@ -27,8 +27,8 @@ from urllib.parse import urlparse
 import requests
 
 from ..configuration import _is_pip_installed_bentoml
-from bentoml.exceptions import BentoMLException
-from bentoml.saved_bundle.local_py_modules import (
+from ..exceptions import BentoMLException
+from .local_py_modules import (
     copy_local_py_modules,
     copy_zip_import_archives,
 )
