@@ -6,7 +6,9 @@ def create_bentoml_cli():
     return _cli
 
 
-cli = create_bentoml_cli()
+#cli = create_bentoml_cli()
+def cli():
+    print("TODO: create cli")
 
 if __name__ == "__main__":
     cli()  # pylint: disable=no-value-for-parameter
