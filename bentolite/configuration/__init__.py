@@ -66,6 +66,7 @@ BENTOML_HOME = DEFAULT_BENTOML_HOME
 # the BentoML module to be used when loading and using a saved BentoService bundle.
 # This is useful when using customized BentoML fork/branch or when working with
 # development branches of BentoML
+__version__ = "0.0.0"
 BENTOML_VERSION = __version__
 # e.g. from '0.4.2+5.g6cac97f.dirty' to '0.4.2'
 LAST_PYPI_RELEASE_VERSION = __version__.split("+")[0]
